@@ -1,0 +1,50 @@
+---
+title: "Godlike"
+author: "Petra ([oleumpetra@gmail.com](mailto:oleumpetra@gmail.com))"
+---
+
+```{r initialsetup, include=FALSE}
+library(knitr)
+library(broom)
+opts_chunk$set(tidy.opts=list(width.cutoff=30), tidy=TRUE)
+options(width=60, knitr.kable.NA = '')
+set.seed(12345)
+
+roll10s <- function(dicepool, hard=0, h.value=7) {
+    c(sample(1:10, dicepool, replace=TRUE), rep(h.value, hard))
+}
+
+dable <- function(x) {
+    tx <- table(x)
+    dx <- broom::tidy(tx)
+
+    names(dx) <- c("Number on die", "Frequency")
+    kable(dx, caption=paste0("Dice roll: ", length(x), "d10"))
+
+}
+
+dstats <- function(x) {
+    tx <- table(x)
+    total <- length(x)
+    max.width <- max(tx)
+    max.ind <- length(tx) + 1 - max(which.max(rev(tx)))
+    m.i.h <- as.numeric(names(tx)[max.ind])
+    dx <- data.frame(Statistic=c("Max Width", "Height"), Value=c(max.width, m.i.h))
+    kable(dx, caption=paste0("Statistics for dice roll: ", length(x), "d10"))
+}
+```
+
+_Godlike_ operates on a system based around `d10`s, where success is determined by rolling "matches" of particular "depth."
+
+```{r rolling, include=FALSE}
+five.d10 <- roll10s(5)
+```
+
+For example, a roll of `5d10` might produce the numbers `r five.d10`. Or, in table format:
+
+```{r dicetable, echo=FALSE}
+dable(five.d10)
+dstats(five.d10)
+```
+
+We have two eights and two nines---both "matches"!
