@@ -6,8 +6,10 @@ author: "Petra ([oleumpetra@gmail.com](mailto:oleumpetra@gmail.com))"
 ```{r initialsetup, include=FALSE}
 library(knitr)
 library(broom)
+library(ggplot2)
+library(scales)
 opts_chunk$set(tidy.opts=list(width.cutoff=30), tidy=TRUE)
-options(width=60, knitr.kable.NA = '')
+options(width=60, knitr.kable.NA = '—')
 set.seed(12345)
 
 roll10s <- function(dicepool, hard=0, h.value=7) {
@@ -23,14 +25,65 @@ dable <- function(x) {
 
 }
 
+maxwidth <- function(x) {
+    max(table(x))
+}
+ 
+maxmatchheight <- function(x) {
+    tx <- table(x)
+    tx <- subset(tx, tx >= 2)
+    if (length(tx) == 0) {
+        return(NA)
+    }
+    return(as.numeric(names(tx)[length(tx)]))
+}
+
+nummatches <- function(x) {
+    tx <- table(x)
+    tx <- subset(tx, tx >= 2)
+    length(tx)
+}
+
+maxheight <- function(x) {
+    tx <- table(x)
+    mw <- maxwidth(x)
+    tx <- subset(tx, tx == mw)
+    return(as.numeric(names(tx)[length(tx)]))
+}
+
+manyrolls <- function(dicepool, replicates=2500) {
+    blank=rep(NA, replicates)
+    results <- list("Width"=blank, "Height"=blank, "Matches"=blank, "Best.Height"=blank)
+    for (i in 1:replicates) {
+        throw <- roll10s(dicepool)
+        results$Width[i] = maxwidth(throw)
+        results$Height[i] = maxheight(throw)
+        results$Matches[i] = nummatches(throw)
+        results$Best.Height[i] = maxmatchheight(throw)
+    }
+    results <- as.data.frame(results)
+    names(results) <- c("Maximum width", "Height of maximum width", "Number of matches", "Best overall match height")
+    return(results)
+}
+
+proportions <- function(tx) {
+    dx <- broom::tidy(table(tx))
+    names(dx) <- c("Result", "Frequency")
+    dx <- cbind(dx, Percentage=paste0(round(dx$Frequency/length(tx) * 100, 2), "%"))
+    return(dx)
+}
+ 
+proptable.maxwidth <- function(dx, dicepool) {
+    prt <- proportions(dx[,"Maximum width"])
+    names(prt)[1] <- "Width"
+    kable(prt, caption=paste0("Maximum width of ", nrow(dx), " rolls of ", dicepool, "d10"))
+}
+
 dstats <- function(x) {
     tx <- table(x)
     total <- length(x)
-    max.width <- max(tx)
-    max.ind <- length(tx) + 1 - max(which.max(rev(tx)))
-    m.i.h <- as.numeric(names(tx)[max.ind])
-    dx <- data.frame(Statistic=c("Max Width", "Height"), Value=c(max.width, m.i.h))
-    kable(dx, caption=paste0("Statistics for dice roll: ", length(x), "d10"))
+    dx <- data.frame(Statistic=c("Maximum Width", "Height of maximum width roll", "Total number of matches", "Maximum height out of all matches"), Value=c(maxwidth(x), maxheight(x), nummatches(x), maxmatchheight(x)))
+    kable(dx, caption=paste0("Statistics for ", length(x), "d10 dice roll"))
 }
 ```
 
@@ -44,7 +97,89 @@ For example, a roll of `5d10` might produce the numbers `r five.d10`. Or, in tab
 
 ```{r dicetable, echo=FALSE}
 dable(five.d10)
+```
+
+We have two eights and two nines---both "matches"! Each of these matches has a "width" of 2, but the pair of nines has a "height" of nine, while the eights only have a height of eight. 
+
+```{r dice2, echo=FALSE}
 dstats(five.d10)
 ```
 
-We have two eights and two nines---both "matches"!
+You generally need a match of _some_ kind to succeed, but sometimes height is more important than weight, and sometimes it is the other way around. In the context of "dynamic contests" the book says:
+
+> "Whoever rolls higher (see Height) wins the contest, while whoever rolls wider (see Width) finishes first. Running a race against others is a dynamic contest."
+
+Meanwhile in combat, width matters for both initiative and initiative.
+
+Regardless of the kind of roll, the way to be better is to have more dice to roll. More dice mean wider matches, and more reliable ones; it also means _more_ matches, which helps increase the chances of higher matches too. The question then is: how many dice do you need?
+
+## Increasing height
+
+```{r roll2, echo=FALSE}
+ten.d10 <- roll10s(10)
+```
+
+Our `5d10` roll only produced two matches of width 2---which is actually pretty good. With say `10d10` (the maximum dice pool) we might be able to do better: in this case (`r ten.d10`).
+
+```{r stats2, echo=FALSE}
+dable(ten.d10)
+dstats(ten.d10)
+```
+
+For this particular roll we did manage to double our matches, but we didn't improve on the width or height. Lets roll again:
+
+```{r roll3, echo=FALSE}
+ten.d10 <- roll10s(10)
+dable(ten.d10)
+dstats(ten.d10)
+```
+
+Now we have a set of three fives (if we want to maximise width) _and_ a pair of tens (if height is more important).
+
+Of course, looking at individual rolls isn't actually all that useful except as examples.
+
+```{r roll4, echo=FALSE}
+twenty.5d10 <- manyrolls(5, replicates=20)
+kable(twenty.5d10, caption="20 rolls of 5d10")
+```
+
+With lots of rolls we can look at a table of proportions:
+
+```{r proptable1, echo=FALSE}
+proptable.maxwidth(twenty.5d10, 5)
+```
+
+This suggests that, with `5d10`, you're probably going to get (at least one) pair, but are unlikely to get a triple. But 20 rolls isn't really a lot, so lets do it 2500 times just to make sure:
+
+```{r roll5, echo=FALSE}
+lots.5d10 <- manyrolls(5, replicates=2500)
+proptable.maxwidth(lots.5d10, 5)
+```
+
+Now we see that actually the chances of a pair isn't quite so high, and that a match of width 4 is in fact possible (if rare). Theoretically we know that all five dice could in fact come up with the same number, but the chance of this occurring is $1:10^4 = 1:10,000$, so we wont hold our breath or be too mad it did not happen in this case.
+
+Lets make a graph---this will make it easier to compare between dice pools later.
+
+```{r graph1, echo=FALSE}
+lg <- ggplot(lots.5d10, aes(x=`Maximum width`))
+lg <- lg + geom_histogram(aes(y=(..count..)/sum(..count..),fill=as.factor(`Height of maximum width`)), binwidth=1)
+lg <- lg + scale_y_continuous(labels=percent)
+lg <- lg + labs(fill="Height", y="Percentage", title="2500 rolls of 5d10")
+lg + theme_classic()
+```
+
+I've coloured the bars by the height of the rolls to illustrate an important point: if you roll really poorly in terms of matches, the numbers you do get will be relatively good. For example if you get no matches on `5d10` the worst roll you could have got is some variant of (`r 1:5`), meaning that you must have got at _least_ a 5 (probably a lot better). And if your opponent in a contested roll also didn't get any matches, and your GM is nice, that _might_ just be enough to save you.
+
+Better yet, this same effect works with pairs too, if your dice pool is large enough. Lets roll `10d10`:
+
+```{r roll6, echo=FALSE}
+lots.10d10 <- manyrolls(10, replicates=2500)
+proptable.maxwidth(lots.10d10, 10)
+lg10 <- ggplot(lots.10d10, aes(x=`Maximum width`))
+lg10 <- lg10 + geom_histogram(aes(y=(..count..)/sum(..count..),fill=as.factor(`Height of maximum width`)), binwidth=1)
+lg10 <- lg10 + scale_y_continuous(labels=percent)
+lg10 <- lg10 + labs(fill="Height", y="Percentage", title="2500 rolls of 10d10")
+lg10 + theme_classic()
+```
+
+As you can see here, your chances of getting a triple is greater than your chances of getting a pair on `10d10`, _but_ your chances of getting a pair of tens as your best match is as high as your chances of getting a triple nine or ten added together. The keyword here is "best" match---having a best match be two ones, say, requires that you got no other matches; having it be two tens requires only that you got no triples or above. That latter situation is therefore more likely.
