@@ -69,7 +69,7 @@ manyrolls <- function(dicepool, replicates=2500) {
 proportions <- function(tx) {
     dx <- broom::tidy(table(tx))
     names(dx) <- c("Result", "Frequency")
-    dx <- cbind(dx, Percentage=paste0(round(dx$Frequency/length(tx) * 100, 2), "%"))
+    dx <- cbind(dx, Percentage=sprintf("%.2f%%", dx$Frequency/length(tx) * 100, 2))
     return(dx)
 }
  
@@ -113,7 +113,7 @@ Meanwhile in combat, width matters for both initiative and initiative.
 
 Regardless of the kind of roll, the way to be better is to have more dice to roll. More dice mean wider matches, and more reliable ones; it also means _more_ matches, which helps increase the chances of higher matches too. The question then is: how many dice do you need?
 
-## Increasing height
+## Increasing width
 
 ```{r roll2, echo=FALSE}
 ten.d10 <- roll10s(10)
@@ -163,7 +163,7 @@ Lets make a graph---this will make it easier to compare between dice pools later
 ```{r graph1, echo=FALSE}
 lg <- ggplot(lots.5d10, aes(x=`Maximum width`))
 lg <- lg + geom_histogram(aes(y=(..count..)/sum(..count..),fill=as.factor(`Height of maximum width`)), binwidth=1)
-lg <- lg + scale_y_continuous(labels=percent)
+lg <- lg + scale_y_continuous(labels=percent, breaks=c(0, 0.10, 0.25, 0.50, 0.75, 0.9, 1))
 lg <- lg + labs(fill="Height", y="Percentage", title="2500 rolls of 5d10")
 lg + theme_classic()
 ```
@@ -177,9 +177,153 @@ lots.10d10 <- manyrolls(10, replicates=2500)
 proptable.maxwidth(lots.10d10, 10)
 lg10 <- ggplot(lots.10d10, aes(x=`Maximum width`))
 lg10 <- lg10 + geom_histogram(aes(y=(..count..)/sum(..count..),fill=as.factor(`Height of maximum width`)), binwidth=1)
-lg10 <- lg10 + scale_y_continuous(labels=percent)
+lg10 <- lg10 + scale_y_continuous(labels=percent, breaks=c(0, 0.10, 0.25, 0.50, 0.75, 0.9, 1))
 lg10 <- lg10 + labs(fill="Height", y="Percentage", title="2500 rolls of 10d10")
 lg10 + theme_classic()
 ```
 
 As you can see here, your chances of getting a triple is greater than your chances of getting a pair on `10d10`, _but_ your chances of getting a pair of tens as your best match is as high as your chances of getting a triple nine or ten added together. The keyword here is "best" match---having a best match be two ones, say, requires that you got no other matches; having it be two tens requires only that you got no triples or above. That latter situation is therefore more likely.
+
+```{r sosomany, echo=FALSE}
+manyresults <- list()
+avresults <- NULL
+allresults <- NULL
+for (dicepool in 1:10) {
+    thisresult <- manyrolls(dicepool)
+    manyresults[[dicepool]] <- thisresult
+    thisresult[is.na(thisresult)] <- 0
+    avresults <- rbind(avresults, colMeans(thisresult))
+    manyresults[[dicepool]] <- cbind("Dice pool"=dicepool, manyresults[[dicepool]])
+    allresults <- rbind(allresults, manyresults[[dicepool]])
+}
+avresults <- cbind("Dice pool"=1:10, avresults)
+avresults <- as.data.frame(avresults)
+#allresults$`Dice pool` = as.factor(allresults$`Dice pool`)
+#kable(avresults, caption="Average results out of 2500 rolls of each dice pool")
+```
+
+Lets look at the average width for all dice pools:
+
+```{r widthgraph, echo=FALSE}
+aw <- ggplot(avresults)
+aw <- aw + geom_smooth(data=allresults, aes(x = `Dice pool`, y = `Maximum width`), method="lm", se=FALSE, color="grey", linetype="dashed")
+aw <- aw + geom_line(aes(x = `Dice pool`, y = `Maximum width`))
+aw <- aw + scale_x_continuous(breaks=1:10)
+aw <- aw + labs(y = "Average maximum width", x="Dice pool", title="Average maximum width for 2500 rolls of 1d10 to 10d10")
+aw + theme_classic()
+```
+
+```{r widthmodel, echo=FALSE}
+width.fit <- lm(`Maximum width` ~ `Dice pool`, data=allresults)
+```
+
+This is very slightly nonlinear---the dashed line is a straight trend line, which predicts that each dice added to the dicepool leads to and increase of `r sprintf("%.2f", coefficients(width.fit)[2])` to the average width of the roll. Of course, this does not give the entire picture. We also want to look at what specific rolls are likely. 
+
+We can look at that in heatmap form, where the colour of a tile comes from the percentage chance of getting a certain width given a particular dice pool.
+
+```{r heatmap, echo=FALSE}
+alltab <- table(width=as.factor(allresults$`Maximum width`),pool=as.factor(allresults$`Dice pool`))
+alltab <- data.frame(alltab / colSums(alltab))
+alltab$width <- as.factor(alltab$width)
+alltab$pool <- as.factor(alltab$pool)
+hr <- ggplot(alltab)
+hr <- hr + geom_tile(aes(x = pool, y = width, fill=Freq))
+hr <- hr + scale_fill_gradient(low="white", high="black",labels=percent)
+hr <- hr + labs(y = "Width", x="Dice pool", fill="Percentage", title="Heatmap of width percentages")
+hr + theme_classic()
+```
+
+Alternately:
+
+```{r line2, echo=FALSE}
+lr <- ggplot(alltab)
+lr <- lr + geom_line(aes(x = pool, y = Freq, group=width, linetype=width))
+lr <- lr + scale_y_continuous(labels=percent, breaks=c(0, 0.10, 0.25, 0.50, 0.75, 0.9, 1))
+lr <- lr + labs(y = "Percentage", x="Dice pool", linetype="Width", title="Graph of width percentages")
+lr + theme_classic()
+# ggsave("widthpercent.pdf", height=8.5, width=11)
+```
+
+As you can see, if your attack, skill, or power relies on getting at least one match---which is probably true---and you want it to be reliable, you should probably invest 5 dice minimum.
+
+## Increasing height
+
+Sometimes, provided you get a match at all, height is the important factor to maximise. Luckily, increasing the dice pool increases this too, but it is rather less intuitive.
+
+```{r bestheight, echo=FALSE, warning=FALSE}
+bh <- ggplot(avresults)
+bh <- bh + geom_line(aes(x=`Dice pool`, y=`Best overall match height`))
+bh <- bh + scale_x_continuous(breaks=1:10)
+bh <- bh + labs(y = "Average best match height", title="Average height of the best match (where \"best\" is in terms of height,\nand failing to get a match counts as 0)")
+bh + theme_classic()
+```
+
+Again, this doesn't tell us a great deal---except that there is a little bit of diminishing returns. Note that the effect of failing most rolls with few dice tends to dominate, however. Perhaps a better representation:
+
+```{r htab, echo=FALSE}
+allres2 <- allresults
+allres2[is.na(allres2)] <- 0
+htab <- table(height=as.factor(allres2$`Best overall match height`),pool=as.factor(allres2$`Dice pool`))
+htab <- data.frame(htab / colSums(htab))
+htab$height <- as.factor(htab$height)
+htab$pool <- as.factor(htab$pool)
+```
+
+```{r line3, echo=FALSE}
+lh <- ggplot(htab)
+lh <- lh + geom_hline(yintercept=0.1, color="darkgrey")
+lh <- lh + geom_line(aes(x = pool, y = Freq, group=height, linetype=height))
+#lh <- lh + geom_smooth(aes(x = pool, y = Freq, group=height, color=height))
+lh <- lh + scale_y_continuous(labels=percent, breaks=c(0, 0.10, 0.25, 0.50, 0.75, 0.9, 1))
+lh <- lh + labs(y = "Percentage", x="Dice pool", linetype="Height", title="Graph of Height percentages")
+lh + theme_classic()
+# ggsave("heightpercent.pdf", height=8.5, width=11)
+```
+
+If you want to get double 10s (or triple 10s!) more than 10% of the time (including taking into account outright failures) you will need a dicepool of at least 6, while you can get those 10s more often than you fail with 7 dice---this is particularly important to consider when looking at regaining will, which happens from matches of 10s. In fact, if you have a dice pool of 10 not only will you basically never fail, you'll get your 10s about a quarter of the time! A nice trick if you can swing it.
+
+## Increasing matches
+
+In some cases getting multiple matches allows you to do more things, for example reloading your rifle on the same turn you fire it. Obviously you're going to need at least four dice, but as we've already seen that's not enough to hit reliably regardless.
+
+```{r matchtab, echo=FALSE}
+mtab <- table(matches=as.factor(allres2$`Number of matches`),pool=as.factor(allres2$`Dice pool`))
+mtab <- data.frame(mtab / colSums(mtab))
+mtab$matches <- as.factor(mtab$matches)
+mtab$pool <- as.factor(mtab$pool)
+```
+
+```{r line4, echo=FALSE}
+lms <- ggplot(mtab)
+lms <- lms + geom_line(aes(x = pool, y = Freq, group=matches, linetype=matches))
+#lms <- lms + geom_smooth(aes(x = pool, y = Freq, group=height, color=height))
+lms <- lms + scale_y_continuous(labels=percent, breaks=c(0, 0.10, 0.25, 0.50, 0.75, 0.9, 1))
+lms <- lms + labs(y = "Percentage", x="Dice pool", linetype="Matches", title="Graph of the chances of getting a certain number of matches")
+lms + theme_classic()
+# ggsave("matchpercent.pdf", height=8.5, width=11)
+```
+
+Six dice mean you can get two matches slightly more often than you fail, but upping one to seven dice means you can get two matches as often as one, and three matches as often as you fail.
+
+This is actually a case where the average graph might be useful:
+
+```{r matchnum, echo=FALSE, warning=FALSE}
+mh <- ggplot(avresults)
+mh <- mh + geom_smooth(aes(x=`Dice pool`, y=`Number of matches`), method="lm", se=FALSE, color="grey", linetype="dashed")
+mh <- mh + geom_line(aes(x=`Dice pool`, y=`Number of matches`))
+mh <- mh + scale_x_continuous(breaks=1:10) + scale_y_continuous(breaks=0:10/2)
+mh <- mh + labs(y = "Average number of matches", title="Average matches, or successful actions")
+mh + theme_classic()
+```
+
+```{r matchmodel, echo=FALSE}
+match.fit <- lm(`Number of matches` ~ `Dice pool`, data=allresults)
+```
+
+This line is definitely not linear, but it's not too far off. Our straight-line prediction would say that adding one dice to your dicepool increases the average number of matches by `r sprintf("%.2f", coefficients(match.fit)[2])`.
+
+The average number of matches is particularly interesting here because, in say the shooting scenario, it means the number of _actions_ per turn. We see that with five dice you'll get about an action per turn, and with eight you'll get two.
+
+## Conclusions
+
+Remarkably, 5-8 dice appear to give good results in all of the arenas looked at above, while getting significantly better results is difficult if not impossible. Excluding wiggle and hard dice (which I might look at later) this seems to be the number to aim for.
