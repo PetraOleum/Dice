@@ -87,7 +87,7 @@ dstats <- function(x) {
 }
 ```
 
-_Godlike_ operates on a system based around `d10`s, where success is determined by rolling "matches" of particular "depth."
+_Godlike_ operates on a system based around `d10`s, where success is determined by rolling "matches" of particular "width" and "height."
 
 ```{r rolling, include=FALSE}
 five.d10 <- roll10s(5)
@@ -109,7 +109,7 @@ You generally need a match of _some_ kind to succeed, but sometimes height is mo
 
 > "Whoever rolls higher (see Height) wins the contest, while whoever rolls wider (see Width) finishes first. Running a race against others is a dynamic contest."
 
-Meanwhile in combat, width matters for both initiative and initiative.
+Meanwhile in combat, width matters for both initiative and damage.
 
 Regardless of the kind of roll, the way to be better is to have more dice to roll. More dice mean wider matches, and more reliable ones; it also means _more_ matches, which helps increase the chances of higher matches too. The question then is: how many dice do you need?
 
