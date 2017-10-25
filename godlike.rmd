@@ -12,6 +12,8 @@ opts_chunk$set(tidy.opts=list(width.cutoff=30), tidy=TRUE)
 options(width=60, knitr.kable.NA = '—')
 set.seed(12345)
 
+maxdicepool <- 10
+
 roll10s <- function(dicepool, hard=0, h.value=7) {
     c(sample(1:10, dicepool, replace=TRUE), rep(h.value, hard))
 }
@@ -188,7 +190,7 @@ As you can see here, your chances of getting a triple is greater than your chanc
 manyresults <- list()
 avresults <- NULL
 allresults <- NULL
-for (dicepool in 1:10) {
+for (dicepool in 1:maxdicepool) {
     thisresult <- manyrolls(dicepool)
     manyresults[[dicepool]] <- thisresult
     thisresult[is.na(thisresult)] <- 0
@@ -196,7 +198,7 @@ for (dicepool in 1:10) {
     manyresults[[dicepool]] <- cbind("Dice pool"=dicepool, manyresults[[dicepool]])
     allresults <- rbind(allresults, manyresults[[dicepool]])
 }
-avresults <- cbind("Dice pool"=1:10, avresults)
+avresults <- cbind("Dice pool"=1:maxdicepool, avresults)
 avresults <- as.data.frame(avresults)
 #allresults$`Dice pool` = as.factor(allresults$`Dice pool`)
 #kable(avresults, caption="Average results out of 2500 rolls of each dice pool")
@@ -208,7 +210,7 @@ Lets look at the average width for all dice pools:
 aw <- ggplot(avresults)
 aw <- aw + geom_smooth(data=allresults, aes(x = `Dice pool`, y = `Maximum width`), method="lm", se=FALSE, color="grey", linetype="dashed")
 aw <- aw + geom_line(aes(x = `Dice pool`, y = `Maximum width`))
-aw <- aw + scale_x_continuous(breaks=1:10)
+aw <- aw + scale_x_continuous(breaks=1:maxdicepool)
 aw <- aw + labs(y = "Average maximum width", x="Dice pool", title="Average maximum width for 2500 rolls of 1d10 to 10d10")
 aw + theme_classic()
 ```
@@ -253,7 +255,7 @@ Sometimes, provided you get a match at all, height is the important factor to ma
 ```{r bestheight, echo=FALSE, warning=FALSE}
 bh <- ggplot(avresults)
 bh <- bh + geom_line(aes(x=`Dice pool`, y=`Best overall match height`))
-bh <- bh + scale_x_continuous(breaks=1:10)
+bh <- bh + scale_x_continuous(breaks=1:maxdicepool)
 bh <- bh + labs(y = "Average best match height", title="Average height of the best match (where \"best\" is in terms of height,\nand failing to get a match counts as 0)")
 bh + theme_classic()
 ```
@@ -311,7 +313,7 @@ This is actually a case where the average graph might be useful:
 mh <- ggplot(avresults)
 mh <- mh + geom_smooth(aes(x=`Dice pool`, y=`Number of matches`), method="lm", se=FALSE, color="grey", linetype="dashed")
 mh <- mh + geom_line(aes(x=`Dice pool`, y=`Number of matches`))
-mh <- mh + scale_x_continuous(breaks=1:10) + scale_y_continuous(breaks=0:10/2)
+mh <- mh + scale_x_continuous(breaks=1:maxdicepool) + scale_y_continuous(breaks=0:10/2)
 mh <- mh + labs(y = "Average number of matches", title="Average matches, or successful actions")
 mh + theme_classic()
 ```
